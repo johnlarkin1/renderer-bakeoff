@@ -99,7 +99,7 @@ async function main() {
 }
 
 function interactive(r: Renderer, w: number, h: number, base: object) {
-  let v = viewAt(0, w, h);
+  let v = viewAt(Number(q.get("frame") ?? 0), w, h);
   let drag: { x: number; y: number } | null = null;
   el.addEventListener("pointerdown", (e) => (drag = { x: e.clientX, y: e.clientY }));
   addEventListener("pointerup", () => (drag = null));

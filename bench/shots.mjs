@@ -8,12 +8,11 @@ try {
   for (const r of ["konva", "pixi"]) {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
     const page = await ctx.newPage();
-    await page.goto(`http://localhost:4173/?r=${r}&icons=20000`);
-    await page.waitForTimeout(4000);
-    await page.screenshot({ path: `results/shot-${r}-fit.png` });
-    for (let i = 0; i < 12; i++) await page.mouse.wheel(0, -300), await page.waitForTimeout(50);
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: `results/shot-${r}-zoom.png` });
+    for (const [name, frame] of [["fit", 0], ["zoom", 330], ["pan3x", 500]]) {
+      await page.goto(`http://localhost:4173/?r=${r}&icons=20000&frame=${frame}`);
+      await page.waitForTimeout(3000);
+      await page.screenshot({ path: `results/shot-${r}-${name}.png` });
+    }
     await ctx.close();
   }
 } finally { await browser.close(); server.kill(); }

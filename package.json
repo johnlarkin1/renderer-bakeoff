@@ -1,0 +1,20 @@
+{
+  "name": "renderer-bakeoff",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173 --strictPort",
+    "bench": "npm run build && node bench/run.mjs"
+  },
+  "dependencies": {
+    "konva": "^9.3.22",
+    "pixi.js": "^8.22.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.64.1",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.5"
+  }
+}

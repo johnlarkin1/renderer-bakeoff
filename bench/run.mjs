@@ -1,5 +1,5 @@
 // Runs each renderer x scene size x CPU throttle in a fresh Chrome page and writes results/.
-// Usage: node bench/run.mjs [--headed] [--icons 5000,20000,50000] [--throttle 1,4] [--reps 3]
+// Usage: node bench/run.mjs [--headed] [--software] [--icons 5000,20000,50000] [--throttle 1,4] [--reps 3]
 import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { chromium } from "playwright";
@@ -14,6 +14,9 @@ const throttles = arg("throttle", "1,4").split(",").map(Number);
 const reps = Number(arg("reps", "3"));
 const renderers = arg("renderers", "konva,pixi").split(",");
 const PORT = 4173;
+// --software forces SwiftShader (CPU-emulated WebGL) and CPU raster for Canvas 2D, like a VDI session.
+const software = process.argv.includes("--software");
+const out = software ? "results/software" : "results/results";
 
 const server = spawn("npx", ["vite", "preview", "--port", String(PORT), "--strictPort"], { stdio: "ignore" });
 await new Promise((r) => setTimeout(r, 1500));
@@ -21,7 +24,9 @@ await new Promise((r) => setTimeout(r, 1500));
 const browser = await chromium.launch({
   channel: "chrome",
   headless: !headed,
-  args: ["--enable-gpu", "--ignore-gpu-blocklist"],
+  args: software
+    ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--disable-gpu-rasterization", "--disable-accelerated-2d-canvas"]
+    : ["--enable-gpu", "--ignore-gpu-blocklist"],
 });
 
 const timeoutMs = Number(arg("timeout", "180")) * 1000;
@@ -47,7 +52,7 @@ try {
             break; // remaining reps would time out too
           }
           runs.push({ ...res, throttle, rep });
-          writeFileSync("results/results.raw.json", JSON.stringify(runs, null, 1));
+          writeFileSync(`${out}.raw.json`, JSON.stringify(runs, null, 1));
           const z = res.segments?.zoom ?? {};
           console.log(`${r.padEnd(5)} icons=${icons} cpu×${throttle} rep${rep}  zoom frameP95=${z.frameP95} cpuP95=${z.cpuP95}  gl=${res.gl}`);
         }
@@ -72,11 +77,11 @@ for (const icons of iconSets)
           buildMs: med(rs.map((x) => x.buildMs)), heapMB: med(rs.map((x) => x.heapMB)) });
       }
     }
-writeFileSync("results/results.json", JSON.stringify({ gl: runs[0]?.gl, headed, reps, rows, dnf }, null, 1));
+writeFileSync(`${out}.json`, JSON.stringify({ gl: runs[0]?.gl, software, headed, reps, rows, dnf }, null, 1));
 
 const md = ["| renderer | icons / ducts | CPU throttle | segment | frame p50 | frame p95 | frame p99 | % frames > 21 ms | render CPU p50 | render CPU p95 | visible items | build ms | heap MB |",
   "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
   ...rows.map((x) => `| ${x.renderer} | ${x.icons} / ${x.ducts} | ${x.throttle}× | ${x.segment} | ${x.frameP50} | ${x.frameP95} | ${x.frameP99} | ${x.over16} | ${x.cpuP50} | ${x.cpuP95} | ${x.visible} | ${x.buildMs} | ${x.heapMB} |`),
   ...dnf.map((x) => `| ${x.renderer} | ${x.icons} | ${x.throttle}× | all | did not finish in ${timeoutMs / 1000} s | | | | | | | | |`)];
-writeFileSync("results/results.md", `GPU: ${runs[0]?.gl}\n\n${md.join("\n")}\n`);
-console.log(`\nwrote results/results.md (${rows.length} rows)`);
+writeFileSync(`${out}.md`, `GPU: ${runs[0]?.gl}\n\n${md.join("\n")}\n`);
+console.log(`\nwrote ${out}.md (${rows.length} rows)`);

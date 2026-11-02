@@ -33,6 +33,21 @@ Each run renders 60 warm-up frames, then 600 measured frames:
 - **render CPU**: time inside the synchronous draw call (`stage.draw()` / `app.render()`). For Pixi this excludes GPU execution, which shows up in the frame interval instead.
 - **build ms**: time to create the renderer and draw the first frame.
 
+## Results (2026-11-01, Apple M5 Pro)
+
+Frame p95 in ms over the whole camera path's worst segment (16.7 = 60 fps held). Medians of 3 runs; the full table is in [results/results.md](results/results.md).
+
+| icons / ducts | Konva, CPU 1× | Pixi, CPU 1× | Konva, CPU 4× | Pixi, CPU 4× |
+| --- | --- | --- | --- | --- |
+| 5,000 / 1,250 | 16.8 | 16.8 | 83 | 16.8 |
+| 20,000 / 5,000 | 83 | 16.8 | 400 | 16.8 |
+| 50,000 / 12,500 | 217 | 16.8 | did not finish in 180 s | 16.8 (p99 33) |
+
+- Pixi held 60 fps in every configuration. Its render CPU per frame stayed at 1–10 ms (p95 up to 26 ms at 50k with 4× throttling), so it has headroom for tools and hit testing.
+- Konva only holds 60 fps at 5k icons on a fast CPU. At 20k it misses on the fast machine; with 4× throttling it drops to 2–4 fps. At 50k with 4× throttling it could not finish the 660-frame path.
+- Konva's frame time is about twice its measured CPU time, so the Canvas 2D raster cost sits outside the draw call.
+- Pixi builds the scene faster (134 ms vs 469 ms at 20k) and uses less heap (46 MB vs 83 MB at 20k).
+
 ## Running
 
 ```bash

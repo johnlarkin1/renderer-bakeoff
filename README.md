@@ -48,6 +48,18 @@ Frame p95 in ms over the whole camera path's worst segment (16.7 = 60 fps held).
 - Konva's frame time is about twice its measured CPU time, so the Canvas 2D raster cost sits outside the draw call.
 - Pixi builds the scene faster (134 ms vs 469 ms at 20k) and uses less heap (46 MB vs 83 MB at 20k).
 
+### Without a GPU (`--software`)
+
+SwiftShader WebGL for Pixi, CPU-raster Canvas 2D for Konva, as in a VDI session. Zoom segment, median of 3 runs ([results/software.md](results/software.md)).
+
+| icons / ducts | Konva frame p50 / p95 | Pixi frame p50 / p95 |
+| --- | --- | --- |
+| 5,000 / 1,250 | 33 / 67 | 83 / 100 |
+| 20,000 / 5,000 | 83 / 167 | 150 / 167 |
+| 50,000 / 12,500 | 317 / 433 | 250 / 300 (one run did not finish in 180 s) |
+
+Neither is usable without a GPU past 5k icons. Konva is about 2.5× faster at 5k; the two converge at 20k; Pixi is slightly ahead at 50k but less stable.
+
 ## Running
 
 ```bash

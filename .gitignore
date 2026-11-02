@@ -2,3 +2,4 @@ dist
 node_modules
 results/*.raw.json
 results/run.log
+results/run-software.log

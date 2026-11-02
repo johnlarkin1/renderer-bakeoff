@@ -24,7 +24,10 @@ const browser = await chromium.launch({
   args: ["--enable-gpu", "--ignore-gpu-blocklist"],
 });
 
+const timeoutMs = Number(arg("timeout", "180")) * 1000;
 const runs = [];
+const dnf = []; // configs that could not finish the camera path within the timeout
+mkdirSync("results", { recursive: true });
 try {
   for (const icons of iconSets)
     for (const throttle of throttles)
@@ -35,9 +38,16 @@ try {
           const cdp = await ctx.newCDPSession(page);
           await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle });
           await page.goto(`http://localhost:${PORT}/?r=${r}&icons=${icons}&run=1`);
-          const res = await page.waitForFunction(() => window.__result, null, { timeout: 300_000 }).then((h) => h.jsonValue());
+          const res = await page.waitForFunction(() => window.__result, null, { timeout: timeoutMs })
+            .then((h) => h.jsonValue(), () => null);
           await ctx.close();
+          if (!res) {
+            dnf.push({ renderer: r, icons, throttle });
+            console.log(`${r.padEnd(5)} icons=${icons} cpu×${throttle} rep${rep}  DID NOT FINISH in ${timeoutMs / 1000}s`);
+            break; // remaining reps would time out too
+          }
           runs.push({ ...res, throttle, rep });
+          writeFileSync("results/results.raw.json", JSON.stringify(runs, null, 1));
           const z = res.segments?.zoom ?? {};
           console.log(`${r.padEnd(5)} icons=${icons} cpu×${throttle} rep${rep}  zoom frameP95=${z.frameP95} cpuP95=${z.cpuP95}  gl=${res.gl}`);
         }
@@ -45,9 +55,6 @@ try {
   await browser.close();
   server.kill();
 }
-
-mkdirSync("results", { recursive: true });
-writeFileSync("results/results.raw.json", JSON.stringify(runs, null, 1));
 
 // Median across reps of each metric, per renderer x icons x throttle x segment.
 const med = (xs) => xs.sort((a, b) => a - b)[Math.floor(xs.length / 2)];
@@ -65,10 +72,11 @@ for (const icons of iconSets)
           buildMs: med(rs.map((x) => x.buildMs)), heapMB: med(rs.map((x) => x.heapMB)) });
       }
     }
-writeFileSync("results/results.json", JSON.stringify({ gl: runs[0]?.gl, headed, reps, rows }, null, 1));
+writeFileSync("results/results.json", JSON.stringify({ gl: runs[0]?.gl, headed, reps, rows, dnf }, null, 1));
 
 const md = ["| renderer | icons / ducts | CPU throttle | segment | frame p50 | frame p95 | frame p99 | % frames > 21 ms | render CPU p50 | render CPU p95 | visible items | build ms | heap MB |",
   "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
-  ...rows.map((x) => `| ${x.renderer} | ${x.icons} / ${x.ducts} | ${x.throttle}× | ${x.segment} | ${x.frameP50} | ${x.frameP95} | ${x.frameP99} | ${x.over16} | ${x.cpuP50} | ${x.cpuP95} | ${x.visible} | ${x.buildMs} | ${x.heapMB} |`)];
+  ...rows.map((x) => `| ${x.renderer} | ${x.icons} / ${x.ducts} | ${x.throttle}× | ${x.segment} | ${x.frameP50} | ${x.frameP95} | ${x.frameP99} | ${x.over16} | ${x.cpuP50} | ${x.cpuP95} | ${x.visible} | ${x.buildMs} | ${x.heapMB} |`),
+  ...dnf.map((x) => `| ${x.renderer} | ${x.icons} | ${x.throttle}× | all | did not finish in ${timeoutMs / 1000} s | | | | | | | | |`)];
 writeFileSync("results/results.md", `GPU: ${runs[0]?.gl}\n\n${md.join("\n")}\n`);
 console.log(`\nwrote results/results.md (${rows.length} rows)`);
